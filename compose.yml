@@ -1,0 +1,23 @@
+services:
+  odoo:
+    image: odoo:18
+    container_name: odoo
+    restart: always
+    user: root
+    ports:
+      - "8069:8069"
+    environment:
+      - PGHOST=${PGHOST}
+      - PGUSER=${PGUSER}
+      - PGPASSWORD=${PGPASSWORD}
+      - PGDATABASE=${PGDATABASE}
+    volumes:
+      - odoo_data:/var/lib/odoo
+      - ./addons:/mnt/extra-addons
+      - ./config/odoo.template.conf:/etc/odoo/odoo.template.conf
+      - ./entrypoint.sh:/entrypoint.sh
+    entrypoint: /entrypoint.sh
+    command: odoo --config=/etc/odoo/odoo.conf
+
+volumes:
+  odoo_data:
