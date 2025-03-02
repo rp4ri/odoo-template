@@ -1,11 +1,16 @@
 provider "azurerm" {
   features {}
+
+  subscription_id = var.subscription_id
+#   client_id       = var.client_id
+#   client_secret   = var.client_secret
+  tenant_id       = var.tenant_id
 }
 
 # Grupo de recursos
 resource "azurerm_resource_group" "rg" {
   name     = "OdooResourceGroup"
-  location = "eastus"
+  location = "brazilsouth"
 }
 
 # Red virtual
@@ -29,7 +34,8 @@ resource "azurerm_public_ip" "public_ip" {
   name                = "odooPublicIP"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Dynamic"
+  allocation_method   = "Static"
+  sku                 = "Standard"
 }
 
 # Interfaz de red (NIC)
@@ -46,31 +52,31 @@ resource "azurerm_network_interface" "nic" {
   }
 }
 
-# Máquina Virtual Linux
+# Máquina Virtual Linux ARM64
 resource "azurerm_linux_virtual_machine" "vm" {
   name                = "odooVM"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  size                = "Standard_B2s"
+  size                = "Standard_D2s_v3"  # 🔄 Cambio a x86
   admin_username      = "azureuser"
-  
+
   admin_ssh_key {
     username   = "azureuser"
-    public_key = file("~/.ssh/id_rsa.pub")
+    public_key = file("${path.module}/id_rsa.pub")
   }
 
-  network_interface_ids = [
-    azurerm_network_interface.nic.id
-  ]
+  network_interface_ids = [azurerm_network_interface.nic.id]
 
   os_disk {
     caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
+    storage_account_type = "Premium_LRS"  # Igual que rodri-jex-livebook
+    disk_size_gb         = 50
   }
 
   source_image_reference {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
+    # sku       = "22_04-lts-arm64"  # Cambio a ARM64
     sku       = "22_04-lts"
     version   = "latest"
   }
@@ -95,12 +101,12 @@ resource "azurerm_linux_virtual_machine" "vm" {
 
     # Add user to Docker group
     sudo groupadd docker
-    sudo usermod -aG docker ubuntu
+    sudo usermod -aG docker azureuser
 
     # Switch to 'ubuntu' user and execute commands
-    su - ubuntu <<EOF2
+    su - azureuser <<EOF2
     # Generate SSH keys
-    ssh-keygen -t rsa -b 4096 -C "dev@jexhq.com" -f ~/.ssh/id_rsa -N ""
+    ssh-keygen -t rsa -b 4096 -C "rodrigo@ssventures.com" -f ~/.ssh/id_rsa -N ""
 
     # Start the SSH agent and add the key
     eval \$(ssh-agent -s)
@@ -113,4 +119,35 @@ resource "azurerm_linux_virtual_machine" "vm" {
     EOF2
   EOF
   )
+
+  depends_on = [azurerm_network_interface.nic]  
+}
+
+
+# Grupo de seguridad de red (NSG)
+resource "azurerm_network_security_group" "nsg" {
+  name                = "odooNSG"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+# Regla para permitir SSH (puerto 22)
+resource "azurerm_network_security_rule" "allow_ssh" {
+  name                        = "AllowSSH"
+  priority                    = 1000
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "22"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.nsg.name
+}
+
+# Asociar el NSG a la NIC
+resource "azurerm_network_interface_security_group_association" "nsg_assoc" {
+  network_interface_id      = azurerm_network_interface.nic.id
+  network_security_group_id = azurerm_network_security_group.nsg.id
 }
