@@ -131,6 +131,21 @@ resource "azurerm_network_security_group" "nsg" {
   resource_group_name = azurerm_resource_group.rg.name
 }
 
+# Regla para permitir tráfico HTTP a Odoo (puerto 8069)
+resource "azurerm_network_security_rule" "allow_odoo" {
+  name                        = "AllowOdoo"
+  priority                    = 1001
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "8069"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.nsg.name
+}
+
 # Regla para permitir SSH (puerto 22)
 resource "azurerm_network_security_rule" "allow_ssh" {
   name                        = "AllowSSH"
