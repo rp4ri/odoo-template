@@ -57,7 +57,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   name                = "odooVM"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  size                = "Standard_D2s_v3"  # 🔄 Cambio a x86
+  size                = "Standard_B2s"  # 🔄 Cambio a x86
   admin_username      = "azureuser"
 
   admin_ssh_key {
